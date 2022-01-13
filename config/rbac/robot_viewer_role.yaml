@@ -1,0 +1,20 @@
+# permissions for end users to view robots.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: robot-viewer-role
+rules:
+- apiGroups:
+  - robots.robolaunch.io
+  resources:
+  - robots
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - robots.robolaunch.io
+  resources:
+  - robots/status
+  verbs:
+  - get

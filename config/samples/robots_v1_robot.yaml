@@ -1,0 +1,50 @@
+apiVersion: robots.robolaunch.io/v1
+kind: Robot
+metadata:
+  name: robot-sample
+  labels:
+    app: robot-sample
+spec:
+  type: hello
+  engin: my name is engin
+  robotType: robotCpu
+  podTemplate:
+    containers:
+      - name: robot-sample
+        image: m1k1o/neko:firefox
+        env:
+          - name: NEKO_BIND
+            value: "0.0.0.0:8080"
+          - name: NEKO_UDP_PORT
+            value: "31749-31749"
+          - name: NEKO_EPR
+            value: "31749-31749"
+          - name: NEKO_ICELITE
+            value: "1"
+          - name: NEKO_SCREEN
+            value: "1920x1080@30"
+        stdin: true
+        tty: true
+        ports:
+          - name: http
+            containerPort: 8080
+            protocol: TCP
+          - name: spot-webrtc
+            containerPort: 31749
+            protocol: UDP
+  serviceTemplate:
+    type: NodePort
+    ports:
+      - port: 8080
+        targetPort: 8080
+        nodePort: 31528
+        protocol: TCP
+        name: http
+      - port: 31749
+        targetPort: 31749
+        nodePort: 31749
+        protocol: UDP
+        name: neko-webrtc
+    selector:
+      app: spot-1
+  # TODO(user): Add fields here
