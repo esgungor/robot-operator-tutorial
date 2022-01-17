@@ -1,4 +1,3 @@
-
 /*
 Copyright 2022.
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,8 +21,10 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types" // Required for Watching
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -79,7 +80,7 @@ func (r *RobotReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 		return service, nil
 	}
 
-	constructPod := func(robot *robotsv1.Robot) (*appsv1.ReplicaSet, error) {
+	constructReplicas := func(robot *robotsv1.Robot) (*appsv1.ReplicaSet, error) {
 		var repValue int32 = 1
 		deploy := &appsv1.ReplicaSet{
 			ObjectMeta: metav1.ObjectMeta{
@@ -109,13 +110,35 @@ func (r *RobotReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 		}
 		return deploy, nil
 	}
-	if robot.Status.ServiceStatus != "Running" {
-		svc, err := constructService(&robot)
+	replica := &appsv1.ReplicaSet{}
+	service := &corev1.Service{}
+
+	err := r.Get(ctx, types.NamespacedName{Name: robot.Name, Namespace: robot.Namespace}, replica)
+
+	if err != nil && errors.IsNotFound(err) {
+		log.Info("Deployment not found, trigger deployment process")
+		replica, err = constructReplicas(&robot)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		log.Info("Creating Deployment", "deployment", replica.Name)
+
+		if err := r.Create(ctx, replica); err != nil {
+			log.Error(err, "error happend when replicaset")
+			return ctrl.Result{}, err
+		}
+		robot.Status.ReplicaStatus = "Running"
+	}
+
+	err = r.Get(ctx, types.NamespacedName{Name: robot.Name, Namespace: robot.Namespace}, service)
+	if err != nil && errors.IsNotFound(err) {
+		log.Info("Service not found, trigger deployment process")
+		service, err = constructService(&robot)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
 
-		if err := r.Create(ctx, svc); err != nil {
+		if err := r.Create(ctx, service); err != nil {
 			log.Error(err, "error happend when service creating")
 			return ctrl.Result{}, err
 		}
@@ -123,24 +146,11 @@ func (r *RobotReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 		robot.Status.ServiceStatus = "Running"
 
 	}
-	if robot.Status.ReplicaStatus != "Running" {
-		replica, err := constructPod(&robot)
-		if err != nil {
-			return ctrl.Result{}, err
-		}
 
-		if err := r.Create(ctx, replica); err != nil {
-			log.Error(err, "error happend when replicaset")
-			return ctrl.Result{}, err
-		}
-		log.V(1).Info("created Replica for Robot run")
-		robot.Status.ReplicaStatus = "Running"
-	}
 	if err := r.Status().Update(ctx, &robot); err != nil {
 		log.Error(err, "unable to update status")
 		return ctrl.Result{}, err
 	}
-
 	return ctrl.Result{}, nil
 }
 
@@ -148,5 +158,7 @@ func (r *RobotReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 func (r *RobotReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&robotsv1.Robot{}).
+		Owns(&appsv1.ReplicaSet{}).
+		Owns(&corev1.Service{}).
 		Complete(r)
 }

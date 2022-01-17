@@ -14,7 +14,7 @@ spec:
         image: m1k1o/neko:firefox
         env:
           - name: NEKO_BIND
-            value: "0.0.0.0:8080"
+            value: "0.0.0.0:31528"
           - name: NEKO_UDP_PORT
             value: "31749-31749"
           - name: NEKO_EPR
@@ -27,7 +27,7 @@ spec:
         tty: true
         ports:
           - name: http
-            containerPort: 8080
+            containerPort: 31528
             protocol: TCP
           - name: spot-webrtc
             containerPort: 31749
@@ -35,8 +35,8 @@ spec:
   serviceTemplate:
     type: NodePort
     ports:
-      - port: 8080
-        targetPort: 8080
+      - port: 31528
+        targetPort: 31528
         nodePort: 31528
         protocol: TCP
         name: http
@@ -46,5 +46,5 @@ spec:
         protocol: UDP
         name: neko-webrtc
     selector:
-      app: spot-1
+      app: robot-sample
   # TODO(user): Add fields here
